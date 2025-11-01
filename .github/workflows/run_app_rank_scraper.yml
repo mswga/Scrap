@@ -2,7 +2,7 @@ name: Run App Store Rank Scraper (Daily)
 
 on:
   schedule:
-    - cron: "0 6 * * *"  # Runs every day at 06:00 UTC
+    - cron: "0 7 * * *"  # Runs every day at 07:00 UTC (08:00 Berlin)
   workflow_dispatch:
 
 permissions:
@@ -34,21 +34,27 @@ jobs:
         env:
           GDRIVE_SERVICE_KEY: ${{ secrets.GDRIVE_SERVICE_KEY }}
         run: |
+          # Write the service-account JSON from the secret to a file
           echo "$GDRIVE_SERVICE_KEY" > service.json
+
+          # Use PyDrive2 with explicit service-config settings
           python <<'EOF'
           from pydrive2.auth import GoogleAuth
           from pydrive2.drive import GoogleDrive
 
-          # Authenticate using the service account key
+          # Configure PyDrive2 to use the service account key we just wrote
           gauth = GoogleAuth()
+          gauth.settings['client_config_backend'] = 'service'
+          gauth.settings['service_config'] = {'client_json_file_path': 'service.json'}
           gauth.ServiceAuth()
+
           drive = GoogleDrive(gauth)
 
           # Upload or overwrite AppRanks.csv
           file = drive.CreateFile({'title': 'AppRanks.csv'})
           file.SetContentFile('AppRanks.csv')
           file.Upload()
-          print("\u2705 Uploaded AppRanks.csv to Google Drive")
+          print("✅ Uploaded AppRanks.csv to Google Drive")
           EOF
 
       - name: Commit and push updated CSV
