@@ -2,7 +2,7 @@ name: Run App Store Rank Scraper (Daily)
 
 on:
   schedule:
-    - cron: "0 7 * * *"  # 08:00 Berlin time
+    - cron: "0 6 * * *"
   workflow_dispatch:
 
 permissions:
@@ -22,10 +22,13 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt google-api-python-client google-auth google-auth-oauthlib google-auth-httplib2
+        run: pip install -r requirements.txt
 
       - name: Run scraper
         run: python app_rank_scraper.py
+
+      - name: Install Google Drive dependencies
+        run: pip install google-api-python-client google-auth google-auth-oauthlib google-auth-httplib2
 
       - name: Upload CSV to Google Drive
         env:
@@ -33,29 +36,18 @@ jobs:
         run: |
           echo "$GDRIVE_SERVICE_KEY" > service.json
 
-          python << 'EOF'
-from google.oauth2 import service_account
+          python <<EOF
+from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
-
-creds = service_account.Credentials.from_service_account_file(
-    "service.json",
-    scopes=SCOPES
-)
-
-drive_service = build('drive', 'v3', credentials=creds)
+SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+creds = Credentials.from_service_account_file("service.json", scopes=SCOPES)
+drive_service = build("drive", "v3", credentials=creds)
 
 file_metadata = {"name": "AppRanks.csv"}
-media = MediaFileUpload("AppRanks.csv", mimetype="text/csv")
-
-file = drive_service.files().create(
-    body=file_metadata,
-    media_body=media,
-    fields="id"
-).execute()
-
+media = MediaFileUpload("AppRanks.csv", mimetype="text/csv", resumable=True)
+file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
 print("✅ Uploaded AppRanks.csv to Google Drive")
 EOF
 
